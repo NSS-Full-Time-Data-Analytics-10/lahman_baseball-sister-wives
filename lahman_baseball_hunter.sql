@@ -1,10 +1,10 @@
--------1. Range of games
+-------1.  What range of years for baseball games played does the provided database cover? 
 SELECT MIN(year), MAX(year), MAX(year)-MIN(year) || ' years' AS total FROM homegames;
 
 SELECT LEFT(MIN(debut),4), LEFT(MAX(finalgame),4) FROM people;
 
 
-----------2. Shortest Player and their total games
+----------2. Find the name and height of the shortest player in the database. What range of years for baseball games played does the provided database cover? 
 SELECT playerid, height, namefirst, namelast, namegiven, teams.name, g_all FROM people
 INNER JOIN appearances
 	USING(playerid)
@@ -13,7 +13,9 @@ INNER JOIN teams
 ORDER BY height
 LIMIT 1;
 
----------3. All Vandy players
+---------3. Find all players in the database who played at Vanderbilt University. 
+------------Create a list showing each player’s first and last names as well as the total salary they earned in the major leagues. 
+------------Sort this list in descending order by the total salary earned. Which Vanderbilt player earned the most money in the majors?
 SELECT playerid, namefirst, namelast, SUM(salary)::text::money AS total_salary FROM collegeplaying
 INNER JOIN schools
 	USING(schoolid)
@@ -25,7 +27,9 @@ WHERE schoolname ILIKE 'vanderbilt university'
 GROUP BY playerid, namefirst, namelast
 ORDER BY total_salary DESC;
 
---------4. putouts by position categories
+--------4. Using the fielding table, group players into three groups based on their position: 
+-----------label players with position OF as "Outfield", those with position "SS", "1B", "2B", and "3B" as "Infield", and those with position "P" or "C" as "Battery". 
+-----------Determine the number of putouts made by each of these three groups in 2016.
 SELECT (CASE WHEN pos = 'OF' THEN 'Outfield'
 		 		WHEN pos IN ('SS', '1B', '2B', '3B') THEN 'Infield' 
 		 		WHEN pos IN ('P', 'C') THEN 'Battery' END) AS position,
@@ -52,7 +56,7 @@ SELECT ROUND(SUM(hr)/SUM(g),15), yearid FROM teams
 GROUP BY yearid
 ORDER BY yearid
 
-SELECT SUM(hr) AS homeruns,SUM(g) AS games, SUM(hr)/SUM(g) AS avg_homeruns,
+SELECT SUM(hr) AS homeruns,SUM(g) AS games, ROUND((SUM(hr)::numeric/SUM(g)),2) AS avg_homeruns,
     CASE WHEN yearid BETWEEN 1920 AND 1929 THEN '1920s'
          WHEN yearid BETWEEN 1930 AND 1939 THEN '1930s'
          WHEN yearid BETWEEN 1940 AND 1949 THEN '1940s'
@@ -67,6 +71,21 @@ SELECT SUM(hr) AS homeruns,SUM(g) AS games, SUM(hr)/SUM(g) AS avg_homeruns,
 FROM teams
 GROUP BY decade
 ORDER BY decade;
+
+
+--------6. Find the player who had the most success stealing bases in 2016, where __success__ is measured as the percentage of stolen base attempts which are successful. 
+-----------(A stolen base attempt results either in a stolen base or being caught stealing.) Consider only players who attempted at least 20 stolen bases.
+
+WITH sb_success_rate AS			(SELECT playerid, sb, cs, ROUND((sb::numeric/(sb+cs)),2) AS sb_percent FROM batting
+								 WHERE  sb > 0
+									AND cs > 0
+									AND sb+cs >= 20
+									AND yearid = 2016
+								ORDER BY sb_percent DESC)					------CTE to calculate stolen base success rate
+SELECT playerid, namefirst, namelast, sb, cs, sb_percent FROM sb_success_rate
+INNER JOIN people USING(playerid)
+ORDER BY playerid;											------join people to display name
+
 
 
 
@@ -114,9 +133,9 @@ WHERE yearid >= 1970
 
 
 
-WITH list AS (WITH max_wins AS (SELECT yearid, MAX(w) AS max_w    ------- PERCENT OF TIME THE WS CHAMPS ALSO HAD MOST WINS OF SEASON
+WITH list AS (WITH max_wins AS (SELECT yearid, MAX(w) AS max_w    
 				  FROM teams
-					GROUP BY yearid)
+					GROUP BY yearid)							------- CTE to determine max wins each year
 SELECT name, yearid, w, max_w,
 		(CASE WHEN w = max_w THEN 1
 	 		ELSE 0 END) AS ws_and_most_wins
@@ -124,8 +143,8 @@ FROM teams
 INNER JOIN max_wins
 USING(yearid)
 WHERE yearid >= 1970
-	AND wswin = 'Y')
-SELECT ROUND((SUM(ws_and_most_wins)::numeric/COUNT(*))*100,2) FROM list
+	AND wswin = 'Y')						------- CTE to show if the WS champs also had most wins that season. 1 = True 0 = False,
+SELECT ROUND((SUM(ws_and_most_wins)::numeric/COUNT(*))*100,2) FROM list        ------- PERCENT OF TIME THE WS CHAMPS ALSO HAD MOST WINS OF SEASON
 
 
 
@@ -276,18 +295,28 @@ WITH cy_young AS (SELECT namefirst, namelast, throws,
 					INNER JOIN awardsplayers USING(playerid, yearid)
 					WHERE awardid = 'Cy Young Award')
 SELECT SUM(lefties)/COUNT(*)::numeric
-FROM  cy_young
+FROM  cy_young;
 
 
 
 
 
 
+SELECT batting.playerid,batting.sb,batting.cs,stolen_bases_2016.sb_attempts,ROUND(batting.sb/stolen_bases_2016.sb_attempts::numeric,2) AS success_percentage
+FROM (SELECT DISTINCT playerid,sb,cs,yearid,(sb) + (cs) AS sb_attempts
+        FROM batting
+        WHERE yearid= 2016
+        AND (sb) + (cs) >= 20) AS stolen_bases_2016
+LEFT JOIN batting
+USING (playerid)
+WHERE batting.yearid=2016
+ORDER BY success_percentage DESC
 
 
-
-
-
+SELECT * FROM batting
+WHERE (playerid = 'nunezed02'
+	OR playerid = 'uptonbj01')
+	AND YEARID = 2016
 
 
 
