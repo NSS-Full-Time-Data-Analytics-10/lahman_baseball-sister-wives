@@ -219,6 +219,37 @@ LIMIT 5
 ---"MIA"	"MIA02"	21405
 ---"CHA"	"CHI12"	21559
 
+---9. Which managers have won the TSN Manager of the Year award in both the National League (NL) and the American League (AL)? Give their full name and the teams that they were managing when they won the award.
+
+(SELECT playerid
+FROM awardsmanagers
+WHERE awardid = 'TSN Manager of the Year'
+	AND lgid = 'NL')
+INTERSECT
+(SELECT playerid
+FROM awardsmanagers
+WHERE awardid = 'TSN Manager of the Year'
+AND lgid = 'AL')
+--"leylaji99"
+--"johnsda02"
+	
+SELECT namefirst, namelast, teamid, playerid, awardid, awardsmanagers.yearid, awardsmanagers.lgid
+FROM awardsmanagers
+LEFT JOIN people
+USING (playerid)
+LEFT JOIN managers
+USING (playerid, yearid)
+WHERE awardid = 'TSN Manager of the Year'
+	AND playerid = 'leylaji99'
+	OR playerid = 'johnsda02'
+	AND awardid <> 'BBWAA Manager of the Year'
+GROUP BY awardsmanagers.yearid, playerid, awardid, awardsmanagers.lgid, namefirst, namelast,  teamid
+---"Jim"	"Leyland"	"PIT"	"leylaji99"	"TSN Manager of the Year"	1988	"NL"
+---"Jim"	"Leyland"	"PIT"	"leylaji99"	"TSN Manager of the Year"	1990	"NL"
+---"Jim"	"Leyland"	"PIT"	"leylaji99"	"TSN Manager of the Year"	1992	"NL"
+---"Davey"	"Johnson"	"BAL"	"johnsda02"	"TSN Manager of the Year"	1997	"AL"
+---"Jim"	"Leyland"	"DET"	"leylaji99"	"TSN Manager of the Year"	2006	"AL"
+---"Davey"	"Johnson"	"WAS"	"johnsda02"	"TSN Manager of the Year"	2012	"NL"
 
 ----11. Is there any correlation between number of wins and team salary? Use data from 2000 and later to answer this question. As you do this analysis, keep in mind that salaries across the whole league tend to increase together, so you may want to look on a year-by-year basis.
 
