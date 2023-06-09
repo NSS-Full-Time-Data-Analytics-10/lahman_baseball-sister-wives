@@ -119,11 +119,11 @@ WHERE wswin = 'N'
 				AND wswin = 'N');
 
 
-WITH max_wins AS (SELECT yearid, MAX(w) AS max_w    -------CASE STATEMENT TO DETERMINE IF WS CHAMP HAD MOST WINS (1 FOR TRUE. 0 FOR FALSE)
+WITH max_wins AS (SELECT yearid, MAX(w) AS max_w   ----------max wins per year 
 				  FROM teams
 					GROUP BY yearid)
 SELECT name, yearid, w, max_w,
-		(CASE WHEN w = max_w THEN 1
+		(CASE WHEN w = max_w THEN 1				-------CASE STATEMENT TO DETERMINE IF WS CHAMP HAD MOST WINS (1 FOR TRUE. 0 FOR FALSE)
 	 		ELSE 0 END) AS ws_and_most_wins
 FROM teams
 INNER JOIN max_wins
