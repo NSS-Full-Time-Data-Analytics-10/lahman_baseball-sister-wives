@@ -49,6 +49,8 @@ FROM fielding
 SELECT min(debut),MAX(finalgame)
 FROM people
 
+---1871 to 2017
+
 ---2.Find the name and height of the shortest player in the database. How many games did he play in? What is the name of the team for which he played?
 ---edward carl (gaedeed01)
 
@@ -153,23 +155,93 @@ ORDER BY decade
 ---Consider only players who attempted at least 20 stolen bases.
 
 
-SELECT people.namefirst,people.namelast,batting.playerid,batting.sb,batting.cs,stolen_bases_2016.sb_attempts,ROUND(batting.sb/stolen_bases_2016.sb_attempts::numeric,2) AS success_percentage
-FROM (SELECT DISTINCT playerid,sb,cs,yearid,sb + cs AS sb_attempts
-		FROM batting
-		WHERE yearid= 2016
-		AND sb + cs >= 20) AS stolen_bases_2016
-LEFT JOIN batting
+SELECT playerid,sb,cs,sb+cs AS sb_attempts,ROUND(sb/(sb+cs)::numeric,2)*100 AS sb_success_percentage
+FROM batting
+INNER JOIN people
 USING (playerid)
-LEFT JOIN people
-USING (playerid)
-WHERE batting.yearid=2016
-ORDER BY success_percentage DESC
+WHERE yearid=2016
+AND (sb) + (cs) >= 20
+ORDER BY SB_success_percentage DESC
 
 ---7.From 1970 – 2016, what is the largest number of wins for a team that did not win the world series? 
 ---What is the smallest number of wins for a team that did win the world series? 
 ---Doing this will probably result in an unusually small number of wins for a world series champion – determine why this is the case.
 ---Then redo your query, excluding the problem year. 
 ---How often from 1970 – 2016 was it the case that a team with the most wins also won the world series? What percentage of the time?
+
+---largest number of wins for a team that did not win the world series, 116
+
+
+WITH wins_by_year AS				(SELECT teamid,yearid,w             ---CTE showing wins by year by team
+									 FROM teams
+									 WHERE yearid BETWEEN 1970 AND 2016
+									 ORDER BY yearid asc)
+SELECT teamid,MAX(teams.w) AS max_wins
+FROM teams
+INNER JOIN wins_by_year
+USING (teamid)
+WHERE wswin = 'N'
+GROUP BY teamid
+ORDER BY max_wins DESC
+
+
+SELECT teamid,yearid,w
+FROM teams
+WHERE teamid = 'PIT'
+order by yearid
+---- will probably result in an unusually small number of wins for a world series champion – determine why this is the case.
+--- smallest number of wins for a team that did win the world series, 63-dodgers (SHORTENED SEASON DUE TO 1981 PLAYERS STRIKE)
+
+WITH wins_by_year AS				(SELECT teamid,yearid,w             ---CTE showing wins by year by team
+									 FROM teams
+									 WHERE yearid BETWEEN 1970 AND 2016
+									 ORDER BY yearid asc)
+SELECT teamid,MIN(teams.w) AS min_wins
+FROM teams
+INNER JOIN wins_by_year
+USING (teamid)
+WHERE wswin = 'Y'
+GROUP BY teamid
+ORDER BY min_wins ASC
+
+
+---Then redo your query, excluding the problem year. 
+---How often from 1970 – 2016 was it the case that a team with the most wins also won the world series? What percentage of the time?
+
+----Cardinals with 83
+WITH wins_by_year AS				(SELECT teamid,yearid,w             ---CTE showing wins by year by team
+									 FROM teams
+									 WHERE yearid >=1970
+									 ORDER BY yearid asc)
+SELECT teamid,teams.yearid,MIN(teams.w) AS min_wins
+FROM teams
+INNER JOIN wins_by_year
+USING (teamid)
+WHERE wswin = 'Y'
+AND teams.yearid <> 1981
+AND teams.yearid >=1970
+GROUP BY teamid,teams.yearid
+ORDER BY min_wins ASC
+
+
+WITH statement AS							(WITH max_wins_year AS		(SELECT MAX(w) AS max_wins,yearid                       ----cte within ctw to percentage of time team w most wins wins ws
+																	 FROM teams
+																	 WHERE yearID BETWEEN 1970 AND 2016
+																	 GROUP BY yearid)
+							SELECT name,yearid,max_wins,w,
+								(CASE WHEN max_wins = w THEN 1
+								WHEN max_wins<>w THEN 0
+								END) AS ws_win
+							FROM teams
+							INNER JOIN max_wins_year
+							USING (yearid)
+							WHERE wswin = 'Y')
+SELECT ROUND(SUM(ws_win)/COUNT(*)::numeric,2) *100 as percent_most_wins_wins_ws
+FROM statement
+
+
+
+
 
 
 
@@ -311,7 +383,7 @@ pitching_righties AS		(SELECT DISTINCT playerid,throws ---right handed pitcher
 						 	 INNER JOIN people
 						 	 USING (playerid)
 						 	 WHERE throws = 'R')
-SELECT ROUND(COUNT(pitching_lefties.playerid)/COUNT(pitching_both.playerid)::numeric,2)  --lefties divided by all pitchers = ~28%
+SELECT ROUND(COUNT(DISTINCT pitching_lefties.playerid)/COUNT(DISTINCT pitching_both.playerid)::numeric,2)*100 AS percentage_lefty_pitchers  --lefties divided by all pitchers = ~27%
 FROM pitching
 LEFT JOIN pitching_both
 USING (playerid)
@@ -321,81 +393,66 @@ LEFT JOIN pitching_righties
 USING (playerid)
 
 
----cy young award
+---cy young award with ctes
 
-WITH pitching_both AS 		(SELECT playerid,yearid,awardsplayers.lgid,teamid,people.throws						---all pitchers who won cy young
+WITH pitching_both AS 		(SELECT DISTINCT playerid						---all pitchers who won cy young
 						 	 FROM pitching
 						 	 INNER JOIN people
 						 	 USING (playerid)
 							 INNER JOIN awardsplayers
 							 USING (playerid,yearid)
 							 WHERE awardid ILIKE '%CY%'),
-pitching_lefties AS			(SELECT playerid,yearid,awardsplayers.lgid,teamid,people.throws 						---all LEFTY pitchers who won cy young
+pitching_lefties AS			(SELECT DISTINCT playerid					---all LEFTY pitchers who won cy young
 						 	 FROM pitching
 						 	 INNER JOIN people
 						 	 USING (playerid)
 							 INNER JOIN awardsplayers
 							 USING (playerid,yearid)
 							 WHERE awardid ILIKE '%CY%'
-							 AND throws = 'L'),						 
-pitching_righties AS		(SELECT playerid,yearid,awardsplayers.lgid,teamid, people.throws						---all RIGHTY pitchers who won cy young
-						 	 FROM pitching
-						 	 INNER JOIN people
-						 	 USING (playerid)
-							 INNER JOIN awardsplayers
-							 USING (playerid,yearid)
-							 WHERE awardid ILIKE '%CY%'
-							 AND throws = 'R')
-SELECT COUNT(pitching_lefties.playerid),COUNT(pitching_both.playerid)::numeric             ---Percentage of cy young winners that throw lefty
+							 AND throws = 'L')						 
+SELECT ROUND(COUNT(pitching_lefties.playerid)/COUNT(pitching_both.playerid)::numeric,2) *100 AS percentage_lefty_pitchers_cy_young          ---Percentage of cy young winners that throw lefty
 FROM pitching
 LEFT JOIN pitching_both
 USING (playerid)
 LEFT JOIN pitching_lefties
 USING (playerid)
-LEFT JOIN pitching_righties
-USING (playerid)
-INNER JOIN awardsplayers
-USING (playerid)
-WHERE awardid ILIKE '%CY%'
+
+
+---cy youngs with case statements
+
+WITH pitching_both AS 		(SELECT DISTINCT playerid,yearid,awardsplayers.lgid,teamid,people.throws,
+							 	(CASE WHEN people.throws = 'L' THEN 1
+							 	ELSE 0 END)	AS lefties															---all pitchers who won cy young
+						 	 FROM pitching
+						 	 INNER JOIN people
+						 	 USING (playerid)
+							 INNER JOIN awardsplayers
+							 USING (playerid,yearid)
+							 WHERE awardid ILIKE '%CY%')
+SELECT ROUND(SUM(lefties)/COUNT(*)::numeric,2) AS percentage_lefties_cy_young
+FROM pitching_both
 
 
 ---hall of fame
 
-SELECT *
-FROM halloffame
 
 
-WITH pitching_both AS 		(SELECT DISTINCT playerid,people.throws			---all pitchers who won cy young
+WITH pitching_both AS 		(SELECT DISTINCT playerid		---all pitchers in HOF
 						 	 FROM pitching
 						 	 INNER JOIN people
 						 	 USING (playerid)
-							 LEFT JOIN halloffame
+							 INNER JOIN halloffame
 							 USING (playerid)
 							 WHERE inducted = 'Y'),
-pitching_lefties AS			(SELECT playerid,yearid,awardsplayers.lgid,teamid,people.throws 						---all LEFTY pitchers who won cy young
+pitching_lefties AS			(SELECT DISTINCT playerid		---all LEFTY pitchers in HOF
 						 	 FROM pitching
 						 	 INNER JOIN people
 						 	 USING (playerid)
-							 INNER JOIN awardsplayers
-							 USING (playerid,yearid)
-							 WHERE awardid ILIKE '%CY%'
-							 AND throws = 'L'),						 
-pitching_righties AS		(SELECT playerid,yearid,awardsplayers.lgid,teamid, people.throws						---all RIGHTY pitchers who won cy young
-						 	 FROM pitching
-						 	 INNER JOIN people
-						 	 USING (playerid)
-							 INNER JOIN awardsplayers
-							 USING (playerid,yearid)
-							 WHERE awardid ILIKE '%CY%'
-							 AND throws = 'R')
-SELECT ROUND(COUNT(pitching_lefties.playerid)/COUNT(pitching_both.playerid)::numeric,4)               ---Percentage of cy young winners that throw lefty
-FROM pitching
-LEFT JOIN pitching_both
-USING (playerid)
+							 INNER JOIN halloffame
+							 USING (playerid)
+							 WHERE inducted = 'Y'
+							 AND people.throws = 'L')
+SELECT ROUND(COUNT(pitching_lefties)/COUNT(pitching_both)::numeric,2)*100 AS percent_lefty_pitchers_HOF
+FROM pitching_both
 LEFT JOIN pitching_lefties
-USING (playerid)
-LEFT JOIN pitching_righties
-USING (playerid)
-INNER JOIN awardsplayers
-USING (playerid)
-WHERE awardid ILIKE '%CY%'
+USING(playerid)
